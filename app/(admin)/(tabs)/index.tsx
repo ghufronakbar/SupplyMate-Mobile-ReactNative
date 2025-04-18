@@ -5,11 +5,18 @@ import { useProfile } from "@/hooks/useProfile";
 import { ChartRes, Overview } from "@/models/Dashboard";
 import { Api } from "@/models/Response";
 import formatRupiah from "@/utils/formatRupiah";
-import { Entypo, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import {
+  Entypo,
+  Ionicons,
+  MaterialCommunityIcons,
+  MaterialIcons,
+} from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,12 +27,27 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StackedBarChart } from "react-native-chart-kit";
 import { StackedBarChartData } from "react-native-chart-kit/dist/StackedBarChart";
 import { AbstractChartConfig } from "react-native-chart-kit/dist/AbstractChart";
+import { toastError } from "@/helper/toast";
+import { Dropdown } from "react-native-element-dropdown";
 
 const HomeScreen = () => {
   const { profile, signOut } = useProfile();
   const { goToProfile, isSetting, toggleSetting, goToChange } = useHome();
-  const { overview, chartData, sbChartConfig, loading, fetchData, data } =
-    useDashboard();
+  const {
+    overview,
+    chartData,
+    sbChartConfig,
+    loading,
+    fetchData,
+    data,
+    isNoData,
+    downloading,
+    handleDownload,
+    selectedLaporan,
+    selectedRange,
+    setSelectedLaporan,
+    setSelectedRange,
+  } = useDashboard();
 
   return (
     <SafeAreaView className="h-full bg-white">
@@ -39,10 +61,7 @@ const HomeScreen = () => {
           className="flex flex-row space-x-4 w-full px-4 py-4 items-center relative z-20"
           onPress={toggleSetting}
         >
-          <ThemedText
-            type="title"
-            className=" font-omedium max-w-[70%]"
-          >
+          <ThemedText type="title" className=" font-omedium max-w-[70%]">
             Hi, {profile.name}
           </ThemedText>
           <Entypo name="chevron-thin-down" size={18} />
@@ -133,6 +152,81 @@ const HomeScreen = () => {
           </View>
           <View className="flex flex-col space-y-2">
             <ThemedText className="text-black text-2xl font-omedium px-4">
+              Laporan
+            </ThemedText>
+            <View className="flex flex-row w-full justify-between px-4">
+              <View
+                className="w-full h-fit bg-white rounded-xl flex flex-col p-4 space-y-2"
+                style={{ elevation: 5 }}
+              >
+                <View className="flex flex-row justify-between w-full items-center">
+                  <View className="w-[47%] h-fit flex flex-col space-y-2">
+                    <ThemedText className="font-omedium text-lg">
+                      Tipe Data
+                    </ThemedText>
+                    <Dropdown
+                      data={LAPORAN_TYPES}
+                      labelField={"label"}
+                      onChange={(value) => setSelectedLaporan(value)}
+                      valueField={"value"}
+                      value={selectedLaporan}
+                      fontFamily="Outfit-Regular"
+                      style={{
+                        backgroundColor: "#F5F5F5",
+                        borderRadius: 8,
+                        borderWidth: 0,
+                        height: 45,
+                        paddingHorizontal: 10,
+                      }}
+                    />
+                  </View>
+                  <View
+                    className={`w-[47%] h-fit flex flex-col space-y-2 ${
+                      selectedLaporan.isRanged ? "" : "hidden"
+                    }`}
+                  >
+                    <ThemedText className="font-omedium text-lg">
+                      Rentang Waktu
+                    </ThemedText>
+                    <Dropdown
+                      data={RANGE_TYPES}
+                      labelField={"label"}
+                      onChange={(value) => setSelectedRange(value)}
+                      valueField={"value"}
+                      value={selectedRange}
+                      fontFamily="Outfit-Regular"
+                      style={{
+                        backgroundColor: "#F5F5F5",
+                        borderRadius: 8,
+                        borderWidth: 0,
+                        height: 45,
+                        paddingHorizontal: 10,
+                      }}
+                    />
+                  </View>
+                </View>
+                <TouchableOpacity
+                  className="border border-gray-200 rounded-3xl flex flex-row items-center justify-center space-x-2 h-10"
+                  onPress={handleDownload}
+                >
+                  {downloading ? (
+                    <ActivityIndicator size="small" color={C[1]} />
+                  ) : (
+                    <View className=" flex flex-row items-center justify-center space-x-2">
+                      <MaterialCommunityIcons
+                        name="download"
+                        color={C[1]}
+                        size={25}
+                      />
+                      <ThemedText className="font-omedium">Download</ThemedText>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+          <View className="flex flex-col space-y-2">
+            <ThemedText className="text-black text-2xl font-omedium px-4">
               Analisis
             </ThemedText>
             <View className="flex flex-row w-full justify-between px-4">
@@ -152,8 +246,15 @@ const HomeScreen = () => {
                   </View>
                 </View>
                 {/* CHART */}
+                {isNoData && !loading && (
+                  <View className="w-full h-40 flex items-center justify-center ">
+                    <ThemedText className="text-lg text-custom-1">
+                      Data belum tersedia
+                    </ThemedText>
+                  </View>
+                )}
                 <ScrollView className="overflow-x-scroll w-full" horizontal>
-                  {chartData.data.length > 0 && (
+                  {!isNoData && chartData.data.length > 0 && (
                     <StackedBarChart
                       data={chartData}
                       width={
@@ -246,6 +347,10 @@ const useDashboard = () => {
     barColors: data?.keys.map((item) => item.color) || [],
   };
 
+  const isNoData = chartData.data.every((item) =>
+    item.every((value) => value === 0)
+  );
+
   const fetchData = async () => {
     setLoading(true);
     await Promise.all([fetchOverview(), fetchChartProduct()]);
@@ -267,8 +372,31 @@ const useDashboard = () => {
     barPercentage: 0.5,
     barRadius: 1,
     propsForLabels: {
-      fontFamily: "Outfit-Regular",
+      fontFamily: "Outfit-Medium",
     },
+  };
+
+  const [downloading, setDownloading] = useState(false);
+  const [selectedRange, setSelectedRange] = useState<(typeof RANGE_TYPES)[0]>(
+    RANGE_TYPES[0]
+  );
+  const [selectedLaporan, setSelectedLaporan] = useState<
+    (typeof LAPORAN_TYPES)[0]
+  >(LAPORAN_TYPES[0]);
+
+  const handleDownload = async () => {
+    try {
+      if (downloading) return;
+      setDownloading(true);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await Linking.openURL(
+        `${process.env.API_URL}/api/report/${selectedLaporan.value}?type=${selectedRange.value}`
+      );
+    } catch (error) {
+      toastError(error);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return {
@@ -278,7 +406,52 @@ const useDashboard = () => {
     sbChartConfig,
     fetchData,
     data,
+    isNoData,
+    downloading,
+    selectedRange,
+    setSelectedRange,
+    selectedLaporan,
+    setSelectedLaporan,
+    handleDownload,
   };
 };
+
+const LAPORAN_TYPES = [
+  {
+    label: "Produk Masuk",
+    value: "input",
+    isRanged: true,
+  },
+  {
+    label: "Pesanan",
+    value: "order",
+    isRanged: true,
+  },
+  {
+    label: "Mitra",
+    value: "partner",
+    isRanged: false,
+  },
+  {
+    label: "Produk",
+    value: "product",
+    isRanged: false,
+  },
+];
+
+const RANGE_TYPES = [
+  {
+    label: "Mingguan",
+    value: "weekly",
+  },
+  {
+    label: "Bulanan",
+    value: "monthly",
+  },
+  {
+    label: "Semua",
+    value: "All",
+  },
+];
 
 export default HomeScreen;

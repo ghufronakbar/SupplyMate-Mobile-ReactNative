@@ -36,7 +36,8 @@ const AnalyticScreen = () => {
     product,
     selectedType,
     onClickType,
-    fetching
+    fetching,
+    isNoData,
   } = useDashboard();
   if (loading) return <LoadingView />;
   return (
@@ -112,8 +113,15 @@ const AnalyticScreen = () => {
               </View>
             </View>
             {/* CHART */}
+              {isNoData && (
+                <View className="w-full h-40 flex items-center justify-center ">
+                  <ThemedText className="text-lg text-custom-1">
+                    Data belum tersedia
+                  </ThemedText>
+                </View>
+              )}
             <ScrollView className="overflow-x-scroll w-full" horizontal>
-              {chartProductData.data.length > 0 && !loading && (
+              {chartProductData.data.length > 0 && !loading && !isNoData && (
                 <StackedBarChart
                   data={chartProductData}
                   width={
@@ -293,12 +301,6 @@ const useDashboard = () => {
     setSelectedSection(section);
   };
 
-  // useFocusEffect(
-  //   useCallback(() => {
-  //     fetchData();
-  //   }, [])
-  // );
-
   useEffect(() => {
     fetchData();
   }, [type]);
@@ -337,6 +339,10 @@ const useDashboard = () => {
     data: dataProduct,
     barColors: income?.keys.map((item) => item?.color) || [],
   };
+
+  const isNoData = chartProductData.data.every((item) =>
+    item.every((value) => value === 0)
+  );
 
   const fetchData = async () => {
     setFetching(true);
@@ -386,6 +392,7 @@ const useDashboard = () => {
     product,
     selectedType,
     onClickType,
+    isNoData,
   };
 };
 export default AnalyticScreen;

@@ -40,7 +40,7 @@ const FormUser = () => {
 
   return (
     <ScrollView className="px-5 flex-1 bg-white min-h-screen">
-      <View>        
+      <View>
         <View className="flex flex-col space-y-2">
           <Img
             uri={form.image}
@@ -135,7 +135,7 @@ const FormUser = () => {
               padding: 12,
               marginBottom: 8,
             }}
-          />          
+          />
           <TouchableOpacity
             onPress={handleSubmit}
             className="mb-4 p-3 flex items-center justify-center rounded-lg bg-custom-1 mt-4"
@@ -260,11 +260,12 @@ const useUser = () => {
       });
       if (pending || loading) return;
       setPending(true);
+      console.log({ form });
       if (id) {
-        const res = await api.put<Api<User>>(`/users/${id}`, form);
+        const res = await api.patch<Api<User>>(`/account/${id}`, form);
         toastSuccess(res?.data?.message);
       } else {
-        const res = await api.post<Api<User>>("/users", form);
+        const res = await api.post<Api<User>>("/account/register", form);
         toastSuccess(res?.data?.message);
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
